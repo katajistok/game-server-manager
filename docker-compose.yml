@@ -1,0 +1,41 @@
+services:
+  master:
+    build: ./master
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgres://lanmaster:password@db:5432/lanmaster?sslmode=disable
+      - ADMIN_TOKEN=changeme
+      - PORT=8080
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  ui:
+    build: ./ui
+    ports:
+      - "80:80"
+    environment:
+      - VITE_API_URL=http://localhost:8080
+    depends_on:
+      - master
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=lanmaster
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=lanmaster
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lanmaster"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  db_data:

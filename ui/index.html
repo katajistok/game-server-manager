@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Game Server Manager</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div id="sidebar">
+  <div id="sidebar-logo">⚡ Game Server Manager</div>
+
+  <div class="sidebar-section-title">Agents</div>
+  <div id="agents-list"></div>
+
+  <div class="sidebar-section-title">Servers</div>
+  <div id="servers-list"></div>
+
+  <div class="sidebar-bottom">
+    <button class="btn btn-ghost" style="width:100%" onclick="switchMainView('admin')">
+      ⚙ Admin
+    </button>
+  </div>
+
+  <div id="ws-status">
+    <div class="ws-dot" id="ws-dot"></div>
+    <span id="ws-label">Connecting...</span>
+  </div>
+</div>
+
+<div id="main">
+
+  <!-- Empty state -->
+  <div id="empty-state">
+    <div class="big-icon">🖥️</div>
+    <div class="title">Select a server or agent</div>
+    <div class="subtitle" id="empty-subtitle">Loading...</div>
+  </div>
+
+  <!-- Agent panel -->
+  <div id="agent-panel" class="panel-padded">
+
+    <div class="agent-header">
+      <div style="font-size:20px;">🖥️</div>
+      <div>
+        <div id="agent-panel-name" class="agent-name"></div>
+        <div class="agent-subtitle">Game server host</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-subtitle">Host Information</div>
+      <div class="info-grid">
+        <div>
+          <div class="info-label">OS</div>
+          <div id="agent-info-os" class="info-value">—</div>
+        </div>
+        <div>
+          <div class="info-label">CPU Cores</div>
+          <div id="agent-info-cores" class="info-value">—</div>
+        </div>
+        <div>
+          <div class="info-label">Disk</div>
+          <div id="agent-disk-val" class="info-value">—</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="metric-header">
+        <div class="metric-label">CPU Usage</div>
+        <div id="agent-cpu-val" class="metric-value indigo">—</div>
+      </div>
+      <canvas id="sparkline-cpu" class="sparkline"></canvas>
+    </div>
+
+    <div class="card">
+      <div class="metric-header">
+        <div class="metric-label">Memory Usage</div>
+        <div id="agent-mem-val" class="metric-value green">—</div>
+      </div>
+      <canvas id="sparkline-mem" class="sparkline"></canvas>
+    </div>
+
+    <div class="metrics-footer">
+      <div class="metrics-footer-text">Metrics update every 30 seconds · Last 30 data points shown</div>
+      <button class="btn" id="btn-refresh-metrics" onclick="requestMetricsRefresh()">↻ Refresh</button>
+    </div>
+
+  </div>
+
+  <!-- Server panel -->
+  <div id="server-panel">
+
+    <div id="server-header">
+      <div id="server-header-left">
+        <div>
+          <div id="server-title"></div>
+          <div id="server-subtitle"></div>
+        </div>
+        <span class="badge" id="server-status-badge"></span>
+      </div>
+      <div id="server-header-actions">
+        <button class="btn btn-green" id="btn-start"  onclick="startServer()">▶ Start</button>
+        <button class="btn btn-red"   id="btn-stop"   onclick="stopServer()">■ Stop</button>
+        <button class="btn btn-ghost"                 onclick="closeServer()">Close</button>
+        <button class="btn btn-red"   id="btn-delete" onclick="deleteServer()" style="margin-left:8px;">🗑 Delete</button>
+      </div>
+    </div>
+
+    <div id="tabs">
+      <button class="tab-btn active" onclick="switchTab('logs')">Logs</button>
+      <button class="tab-btn"        onclick="switchTab('rcon')">RCON Console</button>
+      <button class="tab-btn"        onclick="switchTab('metrics')">Metrics</button>
+      <button class="tab-btn"        onclick="switchTab('config')">Config</button>
+    </div>
+
+    <div class="tab-panel active" id="tab-logs">
+      <div id="log-output">
+        <div class="log-empty">No logs yet. Start the server to see output.</div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-rcon">
+      <div id="rcon-output">
+        <div class="rcon-empty">Type a command below and press Enter.</div>
+      </div>
+      <div id="rcon-form">
+        <div id="rcon-input-wrap">
+          <span class="rcon-prompt">$</span>
+          <input id="rcon-input" placeholder="status, mp_restartgame 1..." onkeydown="handleRconKey(event)" />
+        </div>
+        <button class="btn btn-blue" onclick="sendRcon()">Send</button>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-metrics">
+      <div id="container-metrics-content">
+        <div class="metrics-empty">No metrics yet. Metrics update every 30 seconds.</div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-config">
+      <div class="config-panel">
+        <div class="config-inner">
+          <div class="config-hint">
+            Changes take effect on next start. Use <strong>Save &amp; Restart</strong> to apply immediately.
+          </div>
+          <div class="form-grid">
+            <div class="form-field">
+              <label class="form-label">Max Players</label>
+              <input id="cfg-maxplayers" type="number" min="1" class="form-input" />
+            </div>
+            <div class="form-field">
+              <label class="form-label">Port</label>
+              <input id="cfg-port" type="number" class="form-input" />
+            </div>
+            <div class="form-field">
+              <label class="form-label">Server Password</label>
+              <input id="cfg-password" type="password" placeholder="Leave empty to clear" class="form-input" />
+            </div>
+            <div class="form-field">
+              <label class="form-label">RCON Password</label>
+              <input id="cfg-rcon" type="password" placeholder="Leave empty to clear" class="form-input" />
+            </div>
+          </div>
+          <div id="cfg-custom-fields" class="form-grid cfg-custom-gap"></div>
+          <div class="form-actions">
+            <button class="btn btn-blue" onclick="saveServerConfig()">Save</button>
+            <button class="btn btn-green" onclick="saveAndRestart()">Save &amp; Restart</button>
+            <span id="cfg-status" class="status-text"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Admin panel -->
+  <div id="admin-panel" class="panel-padded">
+
+    <div class="card">
+      <div class="card-title">🔔 Pending Agents</div>
+      <div id="pending-agents-list">
+        <div class="status-text">Loading...</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">➕ Add Server</div>
+      <div class="form-grid">
+
+        <div class="form-field">
+          <label class="form-label">Server Name *</label>
+          <input id="new-server-name" placeholder="CS2 Competitive 1" class="form-input" />
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Agent *</label>
+          <select id="new-server-agent" class="form-input"></select>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Game *</label>
+          <select id="new-server-game" class="form-input"
+                  onchange="updateModeSelect(); updateFormDefaults()"></select>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Game Mode</label>
+          <select id="new-server-mode" class="form-input"></select>
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Port *</label>
+          <input id="new-server-port" type="number" placeholder="27015" class="form-input" />
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Max Players</label>
+          <input id="new-server-maxplayers" type="number" value="10" class="form-input" />
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">Server Password</label>
+          <input id="new-server-password" type="password" placeholder="Leave empty for public" class="form-input" />
+        </div>
+
+        <div class="form-field">
+          <label class="form-label">RCON Password</label>
+          <input id="new-server-rcon" type="password" placeholder="rcon password" class="form-input" />
+        </div>
+
+        <div id="new-server-custom-fields" class="form-field-full form-grid"></div>
+
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-blue" onclick="createServer()">➕ Create Server</button>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<div id="toast-container"></div>
+
+<div id="confirm-modal" class="modal-overlay" style="display:none">
+  <div class="modal-box" style="width:400px">
+    <div class="modal-title" id="confirm-title">Are you sure?</div>
+    <p class="confirm-message" id="confirm-message"></p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost"  id="confirm-cancel">Cancel</button>
+      <button class="btn btn-red"    id="confirm-ok">Confirm</button>
+    </div>
+  </div>
+</div>
+
+<div id="token-modal" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <div class="modal-title">Agent Approved</div>
+    <p class="modal-desc">Save this token as <code>AGENT_TOKEN</code> in <code>docker-compose.agent.yml</code>. It will not be shown again.</p>
+    <div class="modal-token-row">
+      <input id="token-modal-input" class="form-input modal-token-input" readonly />
+      <button class="btn btn-blue" onclick="copyAgentToken()">Copy</button>
+    </div>
+    <span id="token-modal-copied" class="modal-copied"></span>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeTokenModal()">Close</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+services:
+  agent:
+    build: ./agent
+    environment:
+      - MASTER_URL=ws://master:8080/ws/agent
+      - AGENT_NAME=lan-server-1
+      - AGENT_TOKEN=
+      - AGENT_NETWORK=server_manager_default
+      - HOST_PROC=/host/proc
+      - HOST_SYS=/host/sys
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host:ro
+    networks:
+      - server_manager_default
+    restart: unless-stopped
+
+networks:
+  server_manager_default:
+    external: true
